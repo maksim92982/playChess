@@ -1,716 +1,573 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Шахматы онлайн — P2P с логированием (исправленное управление)</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Шахматы 1v1 без сервера</title>
+  <style>
+    :root {
+      --bg: #10141b;
+      --panel: #1a2230;
+      --border: #2a364c;
+      --text: #e7edf7;
+      --muted: #9db0cb;
+      --accent: #57a2ff;
+      --ok: #48d597;
+      --danger: #ff6b6b;
+      --light: #f0d9b5;
+      --dark: #b58863;
+      --highlight: #e6ff63;
+    }
 
-        body {
-            background: linear-gradient(145deg, #2e3b3e 0%, #1e2a2c 100%);
-            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-        }
+    * { box-sizing: border-box; }
 
-        .game-container {
-            background: #2c2e2f;
-            border-radius: 42px;
-            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            padding: 20px 24px 24px 24px;
-            backdrop-filter: blur(2px);
-            max-width: 1100px;
-            width: 100%;
-        }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
 
-        .main-layout {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 24px;
-            justify-content: center;
-        }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 16px;
+    }
 
-        .chess-area {
-            flex: 2;
-            min-width: 300px;
-        }
+    @media (max-width: 900px) {
+      .wrap { grid-template-columns: 1fr; }
+    }
 
-        .log-area {
-            flex: 1;
-            min-width: 260px;
-            background: #0f1315;
-            border-radius: 32px;
-            padding: 16px;
-            box-shadow: inset 0 0 0 1px #3e4a4a, 0 8px 16px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
-        }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
 
-        .log-header {
-            font-weight: bold;
-            color: #b3e4e4;
-            margin-bottom: 12px;
-            font-size: 1.1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-        }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
 
-        .log-clear {
-            background: #2f4f4f;
-            padding: 4px 12px;
-            font-size: 0.7rem;
-            border-radius: 60px;
-            cursor: pointer;
-        }
+    p, label, small { color: var(--muted); }
 
-        .log-list {
-            background: #070c0e;
-            border-radius: 20px;
-            padding: 12px;
-            height: 380px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 0.7rem;
-            color: #c3e8e8;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
 
-        .log-entry {
-            border-left: 3px solid #2f8b8b;
-            padding-left: 8px;
-            margin: 2px 0;
-            word-break: break-word;
-            white-space: pre-wrap;
-        }
+    button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #2f4a77;
+      background: #254a78;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
 
-        .log-entry.info { border-left-color: #3a9b9b; color: #b9f2f2; }
-        .log-entry.success { border-left-color: #6fbf4c; color: #c8ffb0; }
-        .log-entry.error { border-left-color: #e07a5f; color: #ffbc9e; }
-        .log-entry.warning { border-left-color: #f4c542; color: #ffe1a0; }
+    button:hover { filter: brightness(1.08); }
+    button.secondary {
+      background: #233042;
+      border-color: var(--border);
+    }
 
-        canvas {
-            display: block;
-            margin: 0 auto;
-            border-radius: 12px;
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
-            cursor: pointer;
-            background-color: #f0d9b5;
-            width: 100%;
-            height: auto;
-        }
+    textarea, input {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0f1723;
+      color: var(--text);
+      padding: 8px;
+      margin-top: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }
 
-        .info-panel {
-            background: #1f2426;
-            border-radius: 48px;
-            padding: 12px 24px;
-            width: 100%;
-            text-align: center;
-            color: #ececec;
-            font-weight: 600;
-            margin-top: 16px;
-        }
+    textarea { min-height: 90px; resize: vertical; }
 
-        .status {
-            font-size: 1.2rem;
-            letter-spacing: 1px;
-            background: #00000055;
-            display: inline-block;
-            padding: 5px 20px;
-            border-radius: 60px;
-        }
+    .status { margin: 8px 0; font-size: 14px; }
+    .ok { color: var(--ok); }
+    .bad { color: var(--danger); }
 
-        .turn-indicator {
-            font-size: 1rem;
-            margin-top: 6px;
-            color: #ffd966;
-        }
+    .board-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
 
-        .connection-area {
-            background: #151b1d;
-            border-radius: 32px;
-            padding: 18px 20px;
-            margin-top: 12px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            justify-content: space-between;
-        }
+    .board {
+      width: min(92vw, 640px);
+      aspect-ratio: 1 / 1;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      border: 1px solid #3a4d6d;
+      border-radius: 8px;
+      overflow: hidden;
+      user-select: none;
+    }
 
-        .signal-box {
-            flex: 1;
-            min-width: 180px;
-            background: #0f1315;
-            border-radius: 24px;
-            padding: 12px;
-            border: 1px solid #3e4a4d;
-        }
+    .sq {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: clamp(28px, 5.2vw, 56px);
+      cursor: pointer;
+      position: relative;
+    }
 
-        .signal-box h4 {
-            margin: 0 0 8px 0;
-            color: #bfd9d9;
-            font-size: 0.9rem;
-        }
+    .sq.light { background: var(--light); }
+    .sq.dark { background: var(--dark); }
+    .sq.selected::after,
+    .sq.target::after {
+      content: "";
+      position: absolute;
+      inset: 8%;
+      border: 3px solid var(--highlight);
+      border-radius: 6px;
+      pointer-events: none;
+    }
 
-        textarea {
-            width: 100%;
-            background: #1c2629;
-            border: 1px solid #4e6b6b;
-            color: #e0f2f2;
-            font-family: monospace;
-            font-size: 0.7rem;
-            border-radius: 18px;
-            padding: 10px;
-            resize: vertical;
-            margin-bottom: 10px;
-        }
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 14px;
+    }
 
-        button {
-            background: #2f5e5e;
-            border: none;
-            color: white;
-            font-weight: bold;
-            padding: 8px 14px;
-            border-radius: 60px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 0.8rem;
-            margin-right: 6px;
-            margin-top: 5px;
-        }
-
-        button:hover { background: #3f7a7a; transform: translateY(-2px); }
-        button:active { transform: translateY(1px); }
-        .reset-btn { background: #7a4c2c; }
-        .copy-btn { background: #2c4f6e; }
-
-        @media (max-width: 800px) {
-            .main-layout { flex-direction: column; }
-            .connection-area { flex-direction: column; }
-        }
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    .move-list {
+      margin-top: 10px;
+      max-height: 180px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      background: #121a27;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+  </style>
 </head>
 <body>
-<div class="game-container">
-    <div class="main-layout">
-        <!-- Левая часть: доска и управление -->
-        <div class="chess-area">
-            <canvas id="chessCanvas" width="480" height="480" style="width:100%; height:auto; max-width:480px; aspect-ratio:1/1"></canvas>
-            <div class="info-panel">
-                <div class="status" id="gameStatus">♜ Нет соединения ♞</div>
-                <div class="turn-indicator" id="turnIndicator"></div>
-            </div>
+  <div class="wrap">
+    <section class="card">
+      <h1>Онлайн-шахматы (2 игрока)</h1>
+      <p>Без отдельного сервера для партии: обмен ходами идет напрямую через WebRTC. Нужен только ручной обмен кодом подключения.</p>
 
-            <div class="connection-area">
-                <!-- Игрок 1 (белые, хост) -->
-                <div class="signal-box">
-                    <h4>🎲 ИГРОК 1 (БЕЛЫЕ) — хост</h4>
-                    <textarea id="offerTextArea" rows="3" placeholder="Здесь будет offer (отправьте чёрному)"></textarea>
-                    <div style="display: flex; flex-wrap: wrap; gap:6px;">
-                        <button id="createOfferBtn">✨ Создать offer</button>
-                        <button id="copyOfferBtn" class="copy-btn">📋 Копировать offer</button>
-                        <button id="applyAnswerBtn">🔗 Вставить answer (от чёрного)</button>
-                    </div>
-                    <div style="font-size: 11px; margin-top: 8px; color:#9ab">① Создайте offer → скопируйте → отправьте чёрному</div>
-                </div>
+      <div class="buttons">
+        <button id="hostBtn">Создать игру (Белые)</button>
+        <button id="joinBtn">Подключиться (Черные)</button>
+      </div>
 
-                <!-- Игрок 2 (чёрные, клиент) -->
-                <div class="signal-box">
-                    <h4>⚫ ИГРОК 2 (ЧЁРНЫЕ) — клиент</h4>
-                    <textarea id="remoteOfferField" rows="3" placeholder="Вставьте сюда offer от белых..."></textarea>
-                    <div style="display: flex; flex-wrap: wrap; gap:6px;">
-                        <button id="createAnswerBtn">♟️ Создать answer (на основе offer)</button>
-                        <button id="copyAnswerBtn" class="copy-btn">📋 Копировать answer</button>
-                    </div>
-                    <div style="font-size: 11px; margin-top: 8px; color:#9ab">② Вставьте offer → создайте answer → скопируйте → отправьте белому</div>
-                </div>
-            </div>
+      <label for="localSdp">Твой код (скопируй и отправь сопернику)</label>
+      <textarea id="localSdp" readonly></textarea>
+      <button class="secondary" id="copyBtn">Скопировать код</button>
 
-            <div style="display: flex; gap: 12px; justify-content: center; margin-top: 12px;">
-                <button id="resetGameBtn" class="reset-btn">🔄 Новая партия</button>
-                <button id="resetConnectionBtn">🔌 Сбросить соединение</button>
-            </div>
-            <div style="font-size: 12px; color: #8aa7a7; text-align: center; margin-top: 12px;">
-                💡 Белый создаёт offer → копирует → отправляет чёрному.<br>
-                💡 Чёрный вставляет offer в своё поле → создаёт answer → копирует → отправляет белому.<br>
-                💡 Белый вставляет answer в своё поле → соединение!
-            </div>
-        </div>
+      <label for="remoteSdp" style="margin-top: 10px; display: block;">Код соперника (вставь сюда)</label>
+      <textarea id="remoteSdp" placeholder="Вставь offer/answer JSON и нажми Применить"></textarea>
+      <button id="applyBtn">Применить код соперника</button>
 
-        <!-- Правая панель: логирование -->
-        <div class="log-area">
-            <div class="log-header">
-                📜 События соединения и игры
-                <span id="clearLogBtn" class="log-clear">Очистить</span>
-            </div>
-            <div id="logList" class="log-list">
-                <div class="log-entry info">🔹 Система готова. Ожидайте действий.</div>
-            </div>
-        </div>
-    </div>
-</div>
+      <div class="status" id="connStatus">Статус: <span class="bad">не подключено</span></div>
+      <div class="status" id="roleStatus">Ты: —</div>
+      <div class="status" id="turnStatus">Ход: —</div>
+      <div class="status" id="gameStatus">Партия: ожидание</div>
 
-<script>
-    // ---------- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ----------
-    let game = new Chess();
-    let canvas = document.getElementById('chessCanvas');
-    let ctx = canvas.getContext('2d');
+      <div class="meta">
+        <div>FEN: <small id="fenTxt">—</small></div>
+        <div>Последний ход: <small id="lastMove">—</small></div>
+      </div>
+      <div class="move-list" id="moves">Ходы:\n</div>
+    </section>
 
-    let peerConnection = null;
-    let dataChannel = null;
-    let connectionActive = false;
-    let myColor = null;          // 'w' или 'b'
-    let selectedSquare = null;
-    let possibleMoves = [];
-    let gameOver = false;
+    <section class="card board-wrap">
+      <div id="board" class="board"></div>
+    </section>
+  </div>
 
-    // DOM элементы
-    const statusDiv = document.getElementById('gameStatus');
-    const turnSpan = document.getElementById('turnIndicator');
-    const offerTextArea = document.getElementById('offerTextArea');     // поле для offer (белые)
-    const remoteOfferField = document.getElementById('remoteOfferField'); // поле для вставки offer (чёрные)
-    const answerTextArea = document.getElementById('answerTextArea') || (() => {
-        // добавим, если вдруг нет — но в новом коде у чёрных нет отдельного поля для answer, answer будет сгенерирован в remoteOfferField? нет, answer будет показан в том же поле после создания? Упростим: сделаем отдельное поле для answer у чёрных, но лучше answer показывать в отдельном поле. Переделаем чуть ниже.
-        const newArea = document.createElement('textarea');
-        newArea.id = 'answerTextArea';
-        newArea.rows = 3;
-        newArea.placeholder = "Здесь появится answer (скопируйте)";
-        document.querySelector('.signal-box:last-child').appendChild(newArea);
-        return newArea;
-    })();
+  <script src="https://unpkg.com/chess.js@1.0.0-beta.7/dist/chess.js"></script>
+  <script>
+    (function () {
+      if (!window.Chess) {
+        alert("Не удалось загрузить chess.js. Проверь интернет.");
+        return;
+      }
 
-    // Но для чистоты: в разметке у чёрных нет поля для answer, давайте добавим его программно, чтобы не ломать интерфейс.
-    // Лучше сразу добавить в HTML, но для надёжности создадим:
-    if (!document.getElementById('answerTextArea')) {
-        const blackBox = document.querySelector('.signal-box:last-child');
-        const answerField = document.createElement('textarea');
-        answerField.id = 'answerTextArea';
-        answerField.rows = 3;
-        answerField.placeholder = "Здесь появится answer (скопируйте и отправьте белому)";
-        blackBox.appendChild(answerField);
-    }
-    const generatedAnswerArea = document.getElementById('answerTextArea');
+      const boardEl = document.getElementById("board");
+      const connStatusEl = document.getElementById("connStatus");
+      const roleStatusEl = document.getElementById("roleStatus");
+      const turnStatusEl = document.getElementById("turnStatus");
+      const gameStatusEl = document.getElementById("gameStatus");
+      const fenTxtEl = document.getElementById("fenTxt");
+      const lastMoveEl = document.getElementById("lastMove");
+      const movesEl = document.getElementById("moves");
+      const localSdpEl = document.getElementById("localSdp");
+      const remoteSdpEl = document.getElementById("remoteSdp");
 
-    const logContainer = document.getElementById('logList');
+      const hostBtn = document.getElementById("hostBtn");
+      const joinBtn = document.getElementById("joinBtn");
+      const applyBtn = document.getElementById("applyBtn");
+      const copyBtn = document.getElementById("copyBtn");
 
-    // Функция логирования
-    function addLog(message, type = 'info') {
-        const logDiv = document.createElement('div');
-        logDiv.className = `log-entry ${type}`;
-        const timestamp = new Date().toLocaleTimeString();
-        logDiv.innerHTML = `[${timestamp}] ${message}`;
-        logContainer.appendChild(logDiv);
-        logDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        while (logContainer.children.length > 200) logContainer.removeChild(logContainer.firstChild);
-    }
+      const pcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+      let pc = null;
+      let channel = null;
+      let isHost = false;
+      let myColor = null;
+      let selectedSquare = null;
+      let possibleTargets = [];
 
-    function clearLogs() {
-        logContainer.innerHTML = '<div class="log-entry info">🔹 Логи очищены. Новая сессия.</div>';
-    }
+      const chess = new Chess();
+      const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+      const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
 
-    // ---------- Шахматная отрисовка ----------
-    function getPieceSymbol(piece) {
-        if (!piece) return '';
-        const symbols = { 'k':'♚','q':'♛','r':'♜','b':'♝','n':'♞','p':'♟',
-                          'K':'♔','Q':'♕','R':'♖','B':'♗','N':'♘','P':'♙' };
-        return symbols[piece.type === 'k' ? (piece.color === 'w' ? 'K' : 'k') :
-                       piece.type === 'q' ? (piece.color === 'w' ? 'Q' : 'q') :
-                       piece.type === 'r' ? (piece.color === 'w' ? 'R' : 'r') :
-                       piece.type === 'b' ? (piece.color === 'w' ? 'B' : 'b') :
-                       piece.type === 'n' ? (piece.color === 'w' ? 'N' : 'n') :
-                       piece.type === 'p' ? (piece.color === 'w' ? 'P' : 'p') : ''];
-    }
+      const pieceMap = {
+        wp: "♙", wr: "♖", wn: "♘", wb: "♗", wq: "♕", wk: "♔",
+        bp: "♟", br: "♜", bn: "♞", bb: "♝", bq: "♛", bk: "♚"
+      };
 
-    function drawBoard() {
-        const size = 480;
-        const cellSize = size / 8;
-        const board = game.board();
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const x = col * cellSize;
-                const y = row * cellSize;
-                const isLight = (row + col) % 2 === 0;
-                ctx.fillStyle = isLight ? '#f0d9b5' : '#b58863';
-                ctx.fillRect(x, y, cellSize, cellSize);
-                if (selectedSquare && selectedSquare.row === row && selectedSquare.col === col) {
-                    ctx.fillStyle = 'rgba(90, 200, 90, 0.7)';
-                    ctx.fillRect(x, y, cellSize, cellSize);
-                }
-                if (possibleMoves.some(move => move.toRow === row && move.toCol === col)) {
-                    ctx.fillStyle = 'rgba(70, 190, 70, 0.55)';
-                    ctx.fillRect(x, y, cellSize, cellSize);
-                }
-                const piece = board[row][col];
-                if (piece) {
-                    ctx.font = `bold ${cellSize * 0.66}px 'Segoe UI'`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = piece.color === 'w' ? '#ffffff' : '#222222';
-                    ctx.fillText(getPieceSymbol(piece), x + cellSize/2, y + cellSize/2);
-                }
-            }
-        }
-    }
+      function setStatus() {
+        const connected = channel && channel.readyState === "open";
+        connStatusEl.innerHTML = "Статус: " + (connected ? "<span class='ok'>подключено</span>" : "<span class='bad'>не подключено</span>");
+        roleStatusEl.textContent = "Ты: " + (myColor ? (myColor === "w" ? "Белые" : "Черные") : "—");
+        turnStatusEl.textContent = "Ход: " + (chess.turn() === "w" ? "Белых" : "Черных");
 
-    function getSquareFromClick(clientX, clientY) {
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const canvasX = (clientX - rect.left) * scaleX;
-        const canvasY = (clientY - rect.top) * scaleY;
-        if (canvasX < 0 || canvasY < 0 || canvasX > 480 || canvasY > 480) return null;
-        const col = Math.floor(canvasX / 60);
-        const row = Math.floor(canvasY / 60);
-        if (row < 0 || row > 7 || col < 0 || col > 7) return null;
-        return { row, col, algebraic: String.fromCharCode(97 + col) + (8 - row) };
-    }
-
-    function getMovesFromSquare(row, col) {
-        const square = String.fromCharCode(97 + col) + (8 - row);
-        const moves = game.moves({ verbose: true });
-        return moves.filter(m => m.from === square).map(m => ({
-            toRow: 8 - parseInt(m.to[1]), toCol: m.to.charCodeAt(0) - 97,
-            from: m.from, to: m.to, san: m.san
-        }));
-    }
-
-    async function makeLocalMove(moveObj) {
-        if (gameOver || !connectionActive || !dataChannel || dataChannel.readyState !== 'open') {
-            addLog("❌ Ход невозможен: нет активного соединения", "error");
-            return false;
-        }
-        const turn = game.turn();
-        if ((myColor === 'w' && turn !== 'w') || (myColor === 'b' && turn !== 'b')) {
-            addLog("⛔ Сейчас не ваш ход!", "warning");
-            return false;
-        }
-        const move = { from: moveObj.from, to: moveObj.to, promotion: 'q' };
-        try {
-            const result = game.move(move);
-            if (result) {
-                drawBoard();
-                const moveData = { type: 'move', move: { from: move.from, to: move.to, promotion: 'q', san: result.san } };
-                dataChannel.send(JSON.stringify(moveData));
-                addLog(`♟️ Ход: ${result.san} (${move.from} → ${move.to}) отправлен сопернику`, "success");
-                updateTurnDisplay();
-                checkGameEnd();
-                return true;
-            } else {
-                addLog(`Нелегальный ход: ${move.from} → ${move.to}`, "error");
-                return false;
-            }
-        } catch(e) { addLog(`Ошибка при ходе: ${e.message}`, "error"); return false; }
-    }
-
-    function applyOpponentMove(moveInfo) {
-        if (gameOver) return;
-        const turnBefore = game.turn();
-        if ((myColor === 'w' && turnBefore !== 'b') || (myColor === 'b' && turnBefore !== 'w')) {
-            addLog("⚠️ Получен ход от оппонента вне очереди (игнор)", "warning");
-            return;
-        }
-        try {
-            const move = game.move({ from: moveInfo.from, to: moveInfo.to, promotion: moveInfo.promotion || 'q' });
-            if (move) {
-                addLog(`🔄 Ход соперника: ${move.san} (${moveInfo.from}→${moveInfo.to})`, "info");
-                drawBoard();
-                updateTurnDisplay();
-                checkGameEnd();
-            } else {
-                addLog(`❌ Ошибка: неверный ход от оппонента ${moveInfo.from}→${moveInfo.to}`, "error");
-            }
-        } catch(e) { addLog(`Исключение при ходе оппонента: ${e}`, "error"); }
-    }
-
-    function checkGameEnd() {
-        if (game.game_over()) {
-            gameOver = true;
-            let msg = '';
-            if (game.in_checkmate()) {
-                const loser = game.turn() === 'w' ? 'Белые' : 'Чёрные';
-                msg = `🏆 Мат! Победа ${loser === 'Белые' ? 'Чёрных' : 'Белых'}!`;
-            } else if (game.in_stalemate()) msg = '♟️ Пат! Ничья.';
-            else msg = '🏁 Игра завершена.';
-            statusDiv.innerHTML = `🔚 ${msg}`;
-            addLog(msg, "success");
-            return true;
-        }
-        updateStatusMessage("");
-        return false;
-    }
-
-    function updateTurnDisplay() {
-        if (!connectionActive) turnSpan.innerText = '⚡ Ожидание соединения...';
-        else {
-            const turn = game.turn();
-            const myTurnText = (myColor === turn[0]) ? '✅ ВАШ ход' : '⏳ Ход соперника';
-            const who = turn === 'w' ? '♔ Белые' : '♚ Чёрные';
-            turnSpan.innerHTML = `${who} • ${myTurnText}`;
-            if (game.game_over()) turnSpan.innerHTML = '🏁 Игра окончена';
-            drawBoard();
-        }
-    }
-
-    function updateStatusMessage(msg) {
-        if (msg) statusDiv.innerHTML = msg;
-        else {
-            if (!connectionActive) statusDiv.innerHTML = '🔌 Соединение не установлено';
-            else if (game.game_over()) statusDiv.innerHTML = '🏁 Партия завершена';
-            else statusDiv.innerHTML = `♟️ Игра активна • Вы играете за ${myColor === 'w' ? 'БЕЛЫХ' : 'ЧЁРНЫХ'}`;
-        }
-    }
-
-    function resetGameLocallyAndSync() {
-        game = new Chess();
-        selectedSquare = null;
-        possibleMoves = [];
-        gameOver = false;
-        drawBoard();
-        updateTurnDisplay();
-        updateStatusMessage("");
-        addLog("♻️ Новая партия (локальный сброс, отправка синхронизации сопернику)", "info");
-        if (connectionActive && dataChannel && dataChannel.readyState === 'open') {
-            dataChannel.send(JSON.stringify({ type: 'reset' }));
-            addLog("📡 Сигнал сброса отправлен сопернику", "info");
-        }
-    }
-
-    function sendSyncPosition() {
-        if (dataChannel && dataChannel.readyState === 'open') {
-            dataChannel.send(JSON.stringify({ type: 'sync', fen: game.fen() }));
-            addLog(`📤 Отправлена синхронизация позиции: ${game.fen().substring(0, 30)}...`, "info");
-        }
-    }
-
-    // ---------- WEBRTC С НОВЫМ ЛОГИРОВАНИЕМ ----------
-    function setupDataChannel(channel, isInitiator) {
-        if (dataChannel) {
-            try { dataChannel.close(); } catch(e) {}
-        }
-        dataChannel = channel;
-        dataChannel.onopen = () => {
-            addLog(`✅ DataChannel открыт! Соединение активно. ${isInitiator ? "Вы инициатор (белые)" : "Вы ответчик (чёрные)"}`, "success");
-            connectionActive = true;
-            myColor = isInitiator ? 'w' : 'b';
-            updateStatusMessage(`✅ Соединение установлено! Вы играете за ${myColor === 'w' ? 'БЕЛЫХ' : 'ЧЁРНЫХ'}`);
-            updateTurnDisplay();
-            if (isInitiator) {
-                sendSyncPosition();
-            }
-            drawBoard();
-            addLog(`🎉 Второй игрок подключился! Игрок ${myColor === 'w' ? '1 (белые)' : '2 (чёрные)'}`, "success");
-        };
-        dataChannel.onclose = () => {
-            addLog("❌ DataChannel закрыт. Соединение потеряно.", "error");
-            connectionActive = false;
-            myColor = null;
-            updateStatusMessage("❌ Соединение разорвано");
-            turnSpan.innerText = "🔌 Потеря связи";
-        };
-        dataChannel.onmessage = (event) => {
-            try {
-                const msg = JSON.parse(event.data);
-                if (msg.type === 'move') {
-                    addLog(`📨 Получен ход от соперника: ${msg.move.san || `${msg.move.from}→${msg.move.to}`}`, "info");
-                    applyOpponentMove(msg.move);
-                } else if (msg.type === 'reset') {
-                    game = new Chess();
-                    selectedSquare = null;
-                    possibleMoves = [];
-                    gameOver = false;
-                    drawBoard();
-                    updateTurnDisplay();
-                    addLog("♻️ Соперник инициировал сброс партии. Доска обновлена.", "info");
-                } else if (msg.type === 'sync') {
-                    if (!isInitiator && msg.fen) {
-                        game.load(msg.fen);
-                        selectedSquare = null;
-                        possibleMoves = [];
-                        gameOver = game.game_over();
-                        drawBoard();
-                        updateTurnDisplay();
-                        addLog(`🔄 Синхронизация доски получена от хоста. FEN: ${msg.fen.substring(0, 35)}...`, "success");
-                    }
-                }
-            } catch(e) { addLog(`Ошибка обработки сообщения: ${e.message}`, "error"); }
-        };
-    }
-
-    async function createOfferAsHost() {
-        if (peerConnection) closeConnection();
-        peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-        const dc = peerConnection.createDataChannel("gameChannel");
-        setupDataChannel(dc, true);
-        addLog("🔧 Создаётся offer (инициатор, белые)...", "info");
-
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) addLog(`🧩 ICE кандидат собран: ${event.candidate.candidate.substring(0, 50)}...`, "info");
-        };
-        peerConnection.onicegatheringstatechange = () => {
-            addLog(`📡 ICE gathering состояние: ${peerConnection.iceGatheringState}`, "info");
-            if (peerConnection.iceGatheringState === 'complete') {
-                const offer = peerConnection.localDescription;
-                if (offer && offer.sdp) {
-                    offerTextArea.value = offer.sdp;
-                    addLog("✨ Offer полностью сгенерирован! Скопируйте и отправьте второму игроку.", "success");
-                }
-            }
-        };
-        try {
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            addLog("📝 Локальное описание установлено, ожидание ICE gathering...", "info");
-            if (peerConnection.iceGatheringState === 'complete') {
-                offerTextArea.value = peerConnection.localDescription.sdp;
-                addLog("✨ Offer готов (gathering завершён мгновенно).", "success");
-            }
-        } catch(e) { addLog(`Ошибка создания offer: ${e.message}`, "error"); }
-    }
-
-    // ИСПРАВЛЕНО: теперь answer создаётся на основе offer, который чёрный вставил в своё поле remoteOfferField
-    async function applyOfferAndCreateAnswer(offerSdp) {
-        if (!offerSdp) { addLog("❌ Нет SDP offer для создания answer. Вставьте offer от белых в своё поле.", "error"); alert("Вставьте offer от белых в поле 'Вставьте сюда offer'"); return; }
-        if (peerConnection) closeConnection();
-        peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-        peerConnection.ondatachannel = (event) => {
-            addLog("📡 Получен data channel от хоста (ответчик)", "info");
-            setupDataChannel(event.channel, false);
-        };
-        peerConnection.onicegatheringstatechange = () => {
-            addLog(`📡 ICE gathering состояние (ответчик): ${peerConnection.iceGatheringState}`, "info");
-            if (peerConnection.iceGatheringState === 'complete') {
-                const answer = peerConnection.localDescription;
-                if (answer && answer.sdp) {
-                    generatedAnswerArea.value = answer.sdp;
-                    addLog("✨ Answer полностью сгенерирован! Скопируйте и отправьте белому игроку.", "success");
-                }
-            }
-        };
-        try {
-            await peerConnection.setRemoteDescription({ type: "offer", sdp: offerSdp });
-            addLog("📥 Offer от белых установлен, создаю answer...", "info");
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            if (peerConnection.iceGatheringState === 'complete') {
-                generatedAnswerArea.value = peerConnection.localDescription.sdp;
-                addLog("✨ Answer готов (gathering завершён).", "success");
-            }
-        } catch(e) { addLog(`Ошибка создания answer: ${e.message}`, "error"); alert("Неверный offer, попросите белого создать новый"); }
-    }
-
-    async function applyAnswerToHost(answerSdp) {
-        if (!peerConnection || !peerConnection.localDescription) {
-            addLog("❌ Нет активного offer. Сначала создайте offer (белые).", "error");
-            alert("Сначала создайте offer (кнопка 'Создать offer')");
-            return;
-        }
-        if (!answerSdp) { addLog("❌ Нет answer для установки", "error"); alert("Вставьте answer от чёрного в поле 'Вставить answer'"); return; }
-        try {
-            await peerConnection.setRemoteDescription({ type: "answer", sdp: answerSdp });
-            addLog("🔗 Answer от чёрных принят! Соединение устанавливается...", "success");
-        } catch(e) { addLog(`Ошибка установки answer: ${e.message}`, "error"); alert("Неверный answer, попросите чёрного создать заново"); }
-    }
-
-    function closeConnection() {
-        if (dataChannel) { try { dataChannel.close(); } catch(e){} dataChannel = null; }
-        if (peerConnection) { try { peerConnection.close(); } catch(e){} peerConnection = null; }
-        connectionActive = false;
-        myColor = null;
-        selectedSquare = null;
-        possibleMoves = [];
-        gameOver = false;
-        game = new Chess();
-        drawBoard();
-        updateStatusMessage("🔌 Соединение сброшено");
-        turnSpan.innerText = "⚡ Нет соединения";
-        offerTextArea.value = '';
-        remoteOfferField.value = '';
-        if (generatedAnswerArea) generatedAnswerArea.value = '';
-        addLog("🔌 Соединение принудительно сброшено", "warning");
-    }
-
-    // ---------- Обработчики UI ----------
-    canvas.addEventListener('click', (e) => {
-        if (!connectionActive || gameOver || !myColor) {
-            addLog("Игра недоступна — нет активного соединения", "warning");
-            return;
-        }
-        const turn = game.turn();
-        if ((myColor === 'w' && turn !== 'w') || (myColor === 'b' && turn !== 'b')) {
-            addLog("Сейчас ход соперника, подождите", "warning");
-            return;
-        }
-        const square = getSquareFromClick(e.clientX, e.clientY);
-        if (!square) return;
-        const { row, col, algebraic } = square;
-        const pieceAtSquare = game.get(algebraic);
-        if (selectedSquare === null) {
-            if (pieceAtSquare && pieceAtSquare.color === myColor) {
-                selectedSquare = { row, col, algebraic };
-                possibleMoves = getMovesFromSquare(row, col);
-                drawBoard();
-                addLog(`🔍 Выбрана фигура на ${algebraic} (${possibleMoves.length} возможных ходов)`, "info");
-            } else {
-                if (pieceAtSquare) addLog(`Это фигура ${pieceAtSquare.color === 'w' ? 'белых' : 'чёрных'}, а вы играете за ${myColor === 'w' ? 'белых' : 'чёрных'}`, "warning");
-                else addLog("Пустая клетка, выберите свою фигуру", "info");
-            }
+        if (chess.isCheckmate()) {
+          gameStatusEl.textContent = "Партия: мат, победа " + (chess.turn() === "w" ? "черных" : "белых");
+        } else if (chess.isDraw()) {
+          gameStatusEl.textContent = "Партия: ничья";
+        } else if (chess.isCheck()) {
+          gameStatusEl.textContent = "Партия: шах";
         } else {
-            const moveToMake = possibleMoves.find(m => m.toRow === row && m.toCol === col);
-            if (moveToMake) {
-                makeLocalMove({ from: moveToMake.from, to: moveToMake.to });
-                selectedSquare = null;
-                possibleMoves = [];
-                drawBoard();
-            } else {
-                selectedSquare = null;
-                possibleMoves = [];
-                drawBoard();
-                const newPiece = game.get(algebraic);
-                if (newPiece && newPiece.color === myColor) {
-                    selectedSquare = { row, col, algebraic };
-                    possibleMoves = getMovesFromSquare(row, col);
-                    drawBoard();
-                    addLog(`🔍 Перевыбрана фигура на ${algebraic}`, "info");
-                } else addLog("❌ Неверный ход, выделение сброшено", "info");
-            }
+          gameStatusEl.textContent = "Партия: идет";
         }
-    });
 
-    document.getElementById('createOfferBtn').onclick = async () => { closeConnection(); await createOfferAsHost(); };
-    document.getElementById('copyOfferBtn').onclick = () => { if(offerTextArea.value) { navigator.clipboard.writeText(offerTextArea.value); addLog("📋 Offer скопирован в буфер обмена", "success"); } else addLog("Нет offer для копирования", "error"); };
-    document.getElementById('createAnswerBtn').onclick = async () => { 
-        const offer = remoteOfferField.value; 
-        if(!offer.trim()){ alert("Вставьте offer от белых в поле выше"); addLog("Нет offer в поле для вставки (чёрные)", "error"); return; } 
-        await applyOfferAndCreateAnswer(offer); 
-    };
-    document.getElementById('copyAnswerBtn').onclick = () => { 
-        if(generatedAnswerArea.value) { 
-            navigator.clipboard.writeText(generatedAnswerArea.value); 
-            addLog("📋 Answer скопирован в буфер", "success"); 
-        } else addLog("Нет answer для копирования (сначала создайте answer)", "error"); 
-    };
-    document.getElementById('applyAnswerBtn').onclick = async () => { 
-        const ans = generatedAnswerArea ? generatedAnswerArea.value : ''; 
-        if(!ans){ alert("Вставьте answer от чёрного в поле 'answer' (под полем чёрного)"); addLog("Нет answer для вставки", "error"); return; } 
-        await applyAnswerToHost(ans); 
-    };
-    document.getElementById('resetGameBtn').onclick = () => { resetGameLocallyAndSync(); };
-    document.getElementById('resetConnectionBtn').onclick = () => { closeConnection(); };
-    document.getElementById('clearLogBtn').onclick = () => { clearLogs(); };
+        fenTxtEl.textContent = chess.fen();
+      }
 
-    drawBoard();
-    addLog("🎮 Шахматы P2P загружены. Белый создаёт offer, чёрный вставляет offer в своё поле и создаёт answer.", "success");
-</script>
+      function renderMoves() {
+        const history = chess.history();
+        let txt = "Ходы:\n";
+        for (let i = 0; i < history.length; i += 2) {
+          const moveNum = Math.floor(i / 2) + 1;
+          const white = history[i] || "";
+          const black = history[i + 1] || "";
+          txt += moveNum + ". " + white + "  " + black + "\n";
+        }
+        movesEl.textContent = txt;
+      }
+
+      function isMyTurn() {
+        if (!myColor) return false;
+        return chess.turn() === myColor;
+      }
+
+      function clearSelection() {
+        selectedSquare = null;
+        possibleTargets = [];
+      }
+
+      function buildBoard() {
+        boardEl.innerHTML = "";
+        const orientationWhite = myColor !== "b";
+        const boardData = chess.board();
+
+        const drawRanks = orientationWhite ? ranks : [...ranks].reverse();
+        const drawFiles = orientationWhite ? files : [...files].reverse();
+
+        for (let r = 0; r < 8; r++) {
+          for (let f = 0; f < 8; f++) {
+            const rank = drawRanks[r];
+            const file = drawFiles[f];
+            const square = file + String(rank);
+            const modelRow = 8 - rank;
+            const modelCol = files.indexOf(file);
+            const piece = boardData[modelRow][modelCol];
+
+            const sq = document.createElement("div");
+            sq.className = "sq " + (((r + f) % 2 === 0) ? "light" : "dark");
+            sq.dataset.square = square;
+
+            if (selectedSquare === square) sq.classList.add("selected");
+            if (possibleTargets.includes(square)) sq.classList.add("target");
+
+            if (piece) {
+              sq.textContent = pieceMap[piece.color + piece.type] || "";
+            }
+
+            sq.addEventListener("click", onSquareClick);
+            boardEl.appendChild(sq);
+          }
+        }
+      }
+
+      function getLegalTargets(from) {
+        return chess.moves({ square: from, verbose: true }).map((m) => m.to);
+      }
+
+      function sendMessage(payload) {
+        if (channel && channel.readyState === "open") {
+          channel.send(JSON.stringify(payload));
+        }
+      }
+
+      function tryLocalMove(from, to) {
+        const move = chess.move({ from: from, to: to, promotion: "q" });
+        if (!move) return false;
+        lastMoveEl.textContent = move.san;
+        sendMessage({ type: "move", from: from, to: to, promotion: "q" });
+        clearSelection();
+        renderMoves();
+        buildBoard();
+        setStatus();
+        return true;
+      }
+
+      function onSquareClick(ev) {
+        if (!isMyTurn()) return;
+
+        const square = ev.currentTarget.dataset.square;
+        const piece = chess.get(square);
+
+        if (!selectedSquare) {
+          if (!piece) return;
+          if ((piece.color === "w" ? "w" : "b") !== myColor) return;
+          selectedSquare = square;
+          possibleTargets = getLegalTargets(square);
+          buildBoard();
+          return;
+        }
+
+        if (square === selectedSquare) {
+          clearSelection();
+          buildBoard();
+          return;
+        }
+
+        if (possibleTargets.includes(square)) {
+          tryLocalMove(selectedSquare, square);
+          return;
+        }
+
+        if (piece && piece.color === myColor) {
+          selectedSquare = square;
+          possibleTargets = getLegalTargets(square);
+          buildBoard();
+          return;
+        }
+
+        clearSelection();
+        buildBoard();
+      }
+
+      function onChannelMessage(event) {
+        let msg = null;
+        try {
+          msg = JSON.parse(event.data);
+        } catch (_) {
+          return;
+        }
+
+        if (msg.type === "move") {
+          const move = chess.move({
+            from: msg.from,
+            to: msg.to,
+            promotion: msg.promotion || "q"
+          });
+          if (move) {
+            lastMoveEl.textContent = move.san;
+            clearSelection();
+            renderMoves();
+            buildBoard();
+            setStatus();
+          }
+        } else if (msg.type === "sync-fen" && typeof msg.fen === "string") {
+          chess.load(msg.fen);
+          clearSelection();
+          renderMoves();
+          buildBoard();
+          setStatus();
+        }
+      }
+
+      function waitIceDone(pcInstance) {
+        return new Promise((resolve) => {
+          if (pcInstance.iceGatheringState === "complete") {
+            resolve();
+            return;
+          }
+          function checkState() {
+            if (pcInstance.iceGatheringState === "complete") {
+              pcInstance.removeEventListener("icegatheringstatechange", checkState);
+              resolve();
+            }
+          }
+          pcInstance.addEventListener("icegatheringstatechange", checkState);
+        });
+      }
+
+      function attachCommonPeerEvents(pcInstance) {
+        pcInstance.addEventListener("connectionstatechange", setStatus);
+        pcInstance.addEventListener("iceconnectionstatechange", setStatus);
+      }
+
+      function attachChannel(ch) {
+        channel = ch;
+        channel.onopen = () => {
+          setStatus();
+          // Sync position after connect in case one side already moved.
+          sendMessage({ type: "sync-fen", fen: chess.fen() });
+        };
+        channel.onclose = setStatus;
+        channel.onerror = setStatus;
+        channel.onmessage = onChannelMessage;
+      }
+
+      async function createHostOffer() {
+        resetConnection();
+        isHost = true;
+        myColor = "w";
+        chess.reset();
+        lastMoveEl.textContent = "—";
+        renderMoves();
+        clearSelection();
+        buildBoard();
+        setStatus();
+
+        pc = new RTCPeerConnection(pcConfig);
+        attachCommonPeerEvents(pc);
+        const dc = pc.createDataChannel("chess");
+        attachChannel(dc);
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await waitIceDone(pc);
+        localSdpEl.value = JSON.stringify(pc.localDescription);
+      }
+
+      async function createGuestAnswer(offerObj) {
+        resetConnection();
+        isHost = false;
+        myColor = "b";
+        chess.reset();
+        lastMoveEl.textContent = "—";
+        renderMoves();
+        clearSelection();
+        buildBoard();
+        setStatus();
+
+        pc = new RTCPeerConnection(pcConfig);
+        attachCommonPeerEvents(pc);
+        pc.ondatachannel = (ev) => attachChannel(ev.channel);
+
+        await pc.setRemoteDescription(offerObj);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await waitIceDone(pc);
+        localSdpEl.value = JSON.stringify(pc.localDescription);
+      }
+
+      async function applyRemoteDescription() {
+        const raw = remoteSdpEl.value.trim();
+        if (!raw) {
+          alert("Вставь код соперника.");
+          return;
+        }
+
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (_) {
+          alert("Неверный JSON-код.");
+          return;
+        }
+
+        if (!data || !data.type || !data.sdp) {
+          alert("В коде нет type/sdp.");
+          return;
+        }
+
+        if (!pc) {
+          if (data.type === "offer") {
+            await createGuestAnswer(data);
+            return;
+          }
+          alert("Сначала нажми 'Создать игру', затем вставь ответ.");
+          return;
+        }
+
+        if (data.type === "answer") {
+          await pc.setRemoteDescription(data);
+          setStatus();
+          return;
+        }
+
+        if (data.type === "offer") {
+          alert("На этой стороне уже создано соединение. Для offer открой вторую вкладку и нажми 'Подключиться'.");
+        }
+      }
+
+      function resetConnection() {
+        if (channel) {
+          try { channel.close(); } catch (_) {}
+        }
+        if (pc) {
+          try { pc.close(); } catch (_) {}
+        }
+        channel = null;
+        pc = null;
+        localSdpEl.value = "";
+        remoteSdpEl.value = "";
+      }
+
+      hostBtn.addEventListener("click", async () => {
+        try {
+          await createHostOffer();
+        } catch (e) {
+          alert("Ошибка создания игры: " + (e && e.message ? e.message : e));
+        }
+      });
+
+      joinBtn.addEventListener("click", () => {
+        resetConnection();
+        myColor = "b";
+        chess.reset();
+        lastMoveEl.textContent = "—";
+        clearSelection();
+        renderMoves();
+        buildBoard();
+        setStatus();
+        alert("Вставь offer от хоста в поле 'Код соперника' и нажми 'Применить'.");
+      });
+
+      applyBtn.addEventListener("click", async () => {
+        try {
+          await applyRemoteDescription();
+        } catch (e) {
+          alert("Ошибка применения кода: " + (e && e.message ? e.message : e));
+        }
+      });
+
+      copyBtn.addEventListener("click", async () => {
+        if (!localSdpEl.value) return;
+        try {
+          await navigator.clipboard.writeText(localSdpEl.value);
+        } catch (_) {}
+      });
+
+      renderMoves();
+      buildBoard();
+      setStatus();
+    })();
+  </script>
 </body>
 </html>
