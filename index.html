@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Шахматы онлайн — Peer-to-Peer без сервера</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: linear-gradient(145deg, #2e3b3e 0%, #1e2a2c 100%);
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .game-container {
+            background: #2c2e2f;
+            border-radius: 42px;
+            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            padding: 20px 24px 24px 24px;
+            backdrop-filter: blur(2px);
+        }
+
+        .chess-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 12px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+            background-color: #f0d9b5;
+            transition: transform 0.1s ease;
+        }
+        canvas:active {
+            transform: scale(0.98);
+        }
+
+        .info-panel {
+            background: #1f2426;
+            border-radius: 48px;
+            padding: 12px 24px;
+            width: 100%;
+            text-align: center;
+            color: #ececec;
+            font-weight: 600;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .status {
+            font-size: 1.35rem;
+            letter-spacing: 1px;
+            background: #00000055;
+            display: inline-block;
+            padding: 5px 20px;
+            border-radius: 60px;
+            backdrop-filter: blur(4px);
+        }
+
+        .turn-indicator {
+            font-size: 1.1rem;
+            margin-top: 8px;
+            color: #ffd966;
+        }
+
+        .connection-area {
+            background: #151b1d;
+            border-radius: 32px;
+            padding: 18px 20px;
+            margin-top: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: space-between;
+            align-items: flex-start;
+            font-size: 0.85rem;
+        }
+
+        .signal-box {
+            flex: 1;
+            min-width: 180px;
+            background: #0f1315;
+            border-radius: 24px;
+            padding: 12px;
+            border: 1px solid #3e4a4d;
+        }
+
+        .signal-box h4 {
+            margin: 0 0 8px 0;
+            color: #bfd9d9;
+            font-size: 0.9rem;
+        }
+
+        textarea {
+            width: 100%;
+            background: #1c2629;
+            border: 1px solid #4e6b6b;
+            color: #e0f2f2;
+            font-family: monospace;
+            font-size: 0.7rem;
+            border-radius: 18px;
+            padding: 10px;
+            resize: vertical;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background: #2f5e5e;
+            border: none;
+            color: white;
+            font-weight: bold;
+            padding: 8px 14px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.8rem;
+            box-shadow: 0 2px 5px black;
+            margin-right: 6px;
+            margin-top: 5px;
+        }
+
+        button:hover {
+            background: #3f7a7a;
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .reset-btn {
+            background: #7a4c2c;
+        }
+        .reset-btn:hover {
+            background: #9b6238;
+        }
+
+        .copy-btn {
+            background: #2c4f6e;
+        }
+
+        .status-online {
+            color: #b3ffcf;
+            text-shadow: 0 0 3px #00aa33;
+        }
+
+        hr {
+            border-color: #3e5555;
+            margin: 8px 0;
+        }
+
+        .flex-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        @media (max-width: 700px) {
+            .connection-area {
+                flex-direction: column;
+            }
+            .signal-box {
+                width: 100%;
+            }
+            .status {
+                font-size: 1rem;
+            }
+        }
+    </style>
+    <!-- шахматная библиотека chess.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+</head>
+<body>
+<div class="game-container">
+    <div class="chess-wrapper">
+        <canvas id="chessCanvas" width="480" height="480"></canvas>
+
+        <div class="info-panel">
+            <div class="status" id="gameStatus">♜ Нет соединения ♞</div>
+            <div class="turn-indicator" id="turnIndicator"></div>
+        </div>
+
+        <!-- Панель P2P сигнализации (без сервера, копипаст SDP) -->
+        <div class="connection-area">
+            <div class="signal-box">
+                <h4>🎲 ИГРОК 1 (БЕЛЫЕ) — хост</h4>
+                <textarea id="offerTextArea" rows="3" placeholder="Здесь появится SDP offer... скопируйте его"></textarea>
+                <div class="flex-buttons">
+                    <button id="createOfferBtn">✨ Создать offer (я белые)</button>
+                    <button id="copyOfferBtn" class="copy-btn">📋 Копировать offer</button>
+                    <button id="applyAnswerBtn">🔗 Вставить answer от чёрных</button>
+                </div>
+            </div>
+
+            <div class="signal-box">
+                <h4>⚫ ИГРОК 2 (ЧЁРНЫЕ) — клиент</h4>
+                <textarea id="answerTextArea" rows="3" placeholder="Вставьте сюда offer от белых..."></textarea>
+                <div class="flex-buttons">
+                    <button id="createAnswerBtn">♟️ Вставить offer и создать answer</button>
+                    <button id="copyAnswerBtn" class="copy-btn">📋 Копировать answer</button>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 8px;">
+            <button id="resetGameBtn" class="reset-btn">🔄 Новая партия (сброс)</button>
+            <button id="resetConnectionBtn">🔌 Сбросить соединение</button>
+        </div>
+        <div style="font-size: 12px; color: #8aa7a7; text-align: center; margin-top: 12px;">
+            💡 Как играть: <strong>Белый</strong> создаёт offer → копирует и отправляет чёрному (Telegram/любой чат).<br>
+            <strong>Чёрный</strong> вставляет offer → создаёт answer → копирует answer и отправляет белому.<br>
+            <strong>Белый</strong> вставляет answer → соединение установлено! 🎉 Ходы синхронизируются напрямую.
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ----------
+    let game = new Chess();          // состояние партии
+    let canvas = document.getElementById('chessCanvas');
+    let ctx = canvas.getContext('2d');
+
+    // WebRTC
+    let peerConnection = null;
+    let dataChannel = null;
+    let connectionActive = false;
+
+    // Игровая логика
+    let myColor = null;          // 'w' или 'b' для текущего игрока (определяется ролью)
+    let selectedSquare = null;
+    let possibleMoves = [];
+    let gameOver = false;
+    let waitingForOpponent = false;
+
+    // Элементы DOM
+    const statusDiv = document.getElementById('gameStatus');
+    const turnSpan = document.getElementById('turnIndicator');
+    const offerTextArea = document.getElementById('offerTextArea');
+    const answerTextArea = document.getElementById('answerTextArea');
+    const createOfferBtn = document.getElementById('createOfferBtn');
+    const copyOfferBtn = document.getElementById('copyOfferBtn');
+    const applyAnswerBtn = document.getElementById('applyAnswerBtn');
+    const createAnswerBtn = document.getElementById('createAnswerBtn');
+    const copyAnswerBtn = document.getElementById('copyAnswerBtn');
+    const resetGameBtn = document.getElementById('resetGameBtn');
+    const resetConnectionBtn = document.getElementById('resetConnectionBtn');
+
+    // STUN сервер (стандартный Google, помогает при NAT)
+    const iceServers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+
+    // ---------- ОТРИСОВКА ДОСКИ (Юникод фигуры + подсветка) ----------
+    function getPieceSymbol(piece) {
+        if (!piece) return '';
+        const symbols = {
+            'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟',
+            'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙'
+        };
+        return symbols[piece.type === 'k' ? (piece.color === 'w' ? 'K' : 'k') :
+                       piece.type === 'q' ? (piece.color === 'w' ? 'Q' : 'q') :
+                       piece.type === 'r' ? (piece.color === 'w' ? 'R' : 'r') :
+                       piece.type === 'b' ? (piece.color === 'w' ? 'B' : 'b') :
+                       piece.type === 'n' ? (piece.color === 'w' ? 'N' : 'n') :
+                       piece.type === 'p' ? (piece.color === 'w' ? 'P' : 'p') : ''];
+    }
+
+    function drawBoard() {
+        const size = 480;
+        const cellSize = size / 8;
+        const board = game.board();
+
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const x = col * cellSize;
+                const y = row * cellSize;
+                const isLight = (row + col) % 2 === 0;
+                ctx.fillStyle = isLight ? '#f0d9b5' : '#b58863';
+                ctx.fillRect(x, y, cellSize, cellSize);
+
+                // подсветка выбранной клетки
+                if (selectedSquare && selectedSquare.row === row && selectedSquare.col === col) {
+                    ctx.fillStyle = 'rgba(90, 200, 90, 0.7)';
+                    ctx.fillRect(x, y, cellSize, cellSize);
+                }
+                // подсветка возможных ходов
+                if (possibleMoves.some(move => move.toRow === row && move.toCol === col)) {
+                    ctx.fillStyle = 'rgba(70, 190, 70, 0.55)';
+                    ctx.fillRect(x, y, cellSize, cellSize);
+                }
+                // фигура
+                const piece = board[row][col];
+                if (piece) {
+                    ctx.font = `bold ${cellSize * 0.66}px 'Segoe UI', 'Noto Sans', system-ui`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = piece.color === 'w' ? '#ffffff' : '#222222';
+                    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                    ctx.fillText(getPieceSymbol(piece), x + cellSize/2, y + cellSize/2);
+                    ctx.shadowColor = 'transparent';
+                }
+            }
+        }
+        // рамки
+        ctx.strokeStyle = '#2c2e2f';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, size, size);
+    }
+
+    // конвертация клика в координаты
+    function getSquareFromClick(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const canvasX = (clientX - rect.left) * scaleX;
+        const canvasY = (clientY - rect.top) * scaleY;
+        if (canvasX < 0 || canvasY < 0 || canvasX > 480 || canvasY > 480) return null;
+        const col = Math.floor(canvasX / 60);
+        const row = Math.floor(canvasY / 60);
+        if (row < 0 || row > 7 || col < 0 || col > 7) return null;
+        return { row, col, algebraic: String.fromCharCode(97 + col) + (8 - row) };
+    }
+
+    // получить список легальных ходов для клетки
+    function getMovesFromSquare(row, col) {
+        const square = String.fromCharCode(97 + col) + (8 - row);
+        const moves = game.moves({ verbose: true });
+        return moves.filter(m => m.from === square).map(m => ({
+            toRow: 8 - parseInt(m.to[1]),
+            toCol: m.to.charCodeAt(0) - 97,
+            fromRow: row,
+            fromCol: col,
+            san: m.san,
+            from: m.from,
+            to: m.to,
+            promotion: m.promotion || 'q'
+        }));
+    }
+
+    // выполнить ход локально и отправить оппоненту
+    async function makeLocalMove(moveObj) {
+        if (gameOver || !connectionActive || !dataChannel || dataChannel.readyState !== 'open') {
+            updateStatusMessage("⚠️ Нет соединения с соперником");
+            return false;
+        }
+        // проверка очереди хода
+        const turn = game.turn(); // 'w' или 'b'
+        if ((myColor === 'w' && turn !== 'w') || (myColor === 'b' && turn !== 'b')) {
+            updateStatusMessage("Сейчас не ваш ход!");
+            return false;
+        }
+
+        const move = {
+            from: moveObj.from,
+            to: moveObj.to,
+            promotion: 'q'  // всегда ферзь для простоты
+        };
+        try {
+            const result = game.move(move);
+            if (result) {
+                drawBoard();
+                // отправить ход сопернику
+                const moveData = {
+                    type: 'move',
+                    move: { from: move.from, to: move.to, promotion: 'q', san: result.san }
+                };
+                dataChannel.send(JSON.stringify(moveData));
+                updateTurnDisplay();
+                checkGameEnd();
+                return true;
+            } else {
+                updateStatusMessage("Нелегальный ход");
+                return false;
+            }
+        } catch (e) {
+            updateStatusMessage("Ошибка хода");
+            return false;
+        }
+    }
+
+    // обработка входящего хода от оппонента
+    function applyOpponentMove(moveInfo) {
+        if (gameOver) return;
+        const turnBefore = game.turn();
+        // проверяем, что сейчас не наш ход (иначе читерство)
+        if ((myColor === 'w' && turnBefore !== 'b') || (myColor === 'b' && turnBefore !== 'w')) {
+            console.warn("ход от оппонента вне очереди, игнор");
+            return;
+        }
+        try {
+            const move = game.move({ from: moveInfo.from, to: moveInfo.to, promotion: moveInfo.promotion || 'q' });
+            if (move) {
+                drawBoard();
+                updateTurnDisplay();
+                checkGameEnd();
+            } else {
+                console.error("Невалидный ход от оппонента");
+                updateStatusMessage("❌ Ошибка: соперник прислал неверный ход");
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    // проверка конца игры
+    function checkGameEnd() {
+        if (game.game_over()) {
+            gameOver = true;
+            let msg = '';
+            if (game.in_checkmate()) {
+                const loser = game.turn() === 'w' ? 'Белые' : 'Чёрные';
+                msg = `🏆 Мат! Победа ${loser === 'Белые' ? 'Чёрных' : 'Белых'}!`;
+            } else if (game.in_stalemate()) msg = '♟️ Пат! Ничья.';
+            else if (game.in_threefold_repetition()) msg = '🔄 Троекратное повторение — ничья';
+            else msg = '🏁 Игра завершена.';
+            statusDiv.innerHTML = `🔚 ${msg}`;
+            return true;
+        }
+        updateStatusMessage("");
+        return false;
+    }
+
+    function updateTurnDisplay() {
+        if (!connectionActive) {
+            turnSpan.innerText = '⚡ Ожидание соединения...';
+            return;
+        }
+        const turn = game.turn();
+        const myTurnText = (myColor === turn[0]) ? '✅ ВАШ ход' : '⏳ Ход соперника';
+        const who = turn === 'w' ? '♔ Белые' : '♚ Чёрные';
+        turnSpan.innerHTML = `${who} • ${myTurnText}`;
+        if (game.game_over()) turnSpan.innerHTML = '🏁 Игра окончена';
+        drawBoard();
+    }
+
+    function updateStatusMessage(msg) {
+        if (msg) statusDiv.innerHTML = msg;
+        else {
+            if (!connectionActive) statusDiv.innerHTML = '🔌 Соединение не установлено';
+            else if (game.game_over()) statusDiv.innerHTML = '🏁 Партия завершена';
+            else statusDiv.innerHTML = `♟️ Игра активна • Вы играете за ${myColor === 'w' ? 'БЕЛЫХ' : 'ЧЁРНЫХ'}`;
+        }
+    }
+
+    // сброс партии локально + синхронизация с оппонентом
+    function resetGameLocallyAndSync() {
+        game = new Chess();
+        selectedSquare = null;
+        possibleMoves = [];
+        gameOver = false;
+        drawBoard();
+        updateTurnDisplay();
+        updateStatusMessage("");
+        if (connectionActive && dataChannel && dataChannel.readyState === 'open') {
+            dataChannel.send(JSON.stringify({ type: 'reset' }));
+        }
+    }
+
+    // отправить синхронизацию текущей позиции (при подключении)
+    function sendSyncPosition() {
+        if (dataChannel && dataChannel.readyState === 'open') {
+            dataChannel.send(JSON.stringify({ type: 'sync', fen: game.fen() }));
+        }
+    }
+
+    // настройка канала данных
+    function setupDataChannel(channel, isInitiator) {
+        if (dataChannel) {
+            try { dataChannel.close(); } catch(e) {}
+        }
+        dataChannel = channel;
+        dataChannel.onopen = () => {
+            console.log("DataChannel открыт");
+            connectionActive = true;
+            if (isInitiator) {
+                myColor = 'w';   // создатель offer — белые
+            } else {
+                myColor = 'b';   // отвечающий — чёрные
+            }
+            updateStatusMessage(`✅ Соединение установлено! Вы играете за ${myColor === 'w' ? 'БЕЛЫХ' : 'ЧЁРНЫХ'}`);
+            updateTurnDisplay();
+            // синхронизация: хост отправляет FEN, клиент принимает и синхронизирует состояние
+            if (isInitiator) {
+                sendSyncPosition();
+            }
+            drawBoard();
+        };
+        dataChannel.onclose = () => {
+            connectionActive = false;
+            myColor = null;
+            updateStatusMessage("❌ Соединение разорвано");
+            turnSpan.innerText = "🔌 Потеря связи";
+        };
+        dataChannel.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'move') {
+                    applyOpponentMove(msg.move);
+                } else if (msg.type === 'reset') {
+                    game = new Chess();
+                    selectedSquare = null;
+                    possibleMoves = [];
+                    gameOver = false;
+                    drawBoard();
+                    updateTurnDisplay();
+                    updateStatusMessage("♻️ Соперник начал новую партию");
+                } else if (msg.type === 'sync') {
+                    if (!isInitiator && msg.fen) {
+                        game.load(msg.fen);
+                        selectedSquare = null;
+                        possibleMoves = [];
+                        gameOver = game.game_over();
+                        drawBoard();
+                        updateTurnDisplay();
+                        updateStatusMessage("📡 Синхронизация получена");
+                    }
+                }
+            } catch(e) { console.warn("Ошибка парсинга сообщения", e); }
+        };
+    }
+
+    // закрыть соединение полностью
+    function closeConnection() {
+        if (dataChannel) {
+            try { dataChannel.close(); } catch(e) {}
+            dataChannel = null;
+        }
+        if (peerConnection) {
+            try { peerConnection.close(); } catch(e) {}
+            peerConnection = null;
+        }
+        connectionActive = false;
+        myColor = null;
+        selectedSquare = null;
+        possibleMoves = [];
+        gameOver = false;
+        game = new Chess();
+        drawBoard();
+        updateStatusMessage("🔌 Соединение сброшено");
+        turnSpan.innerText = "⚡ Нет соединения";
+        offerTextArea.value = '';
+        answerTextArea.value = '';
+    }
+
+    // ---------- WebRTC сигнализация (ручной обмен SDP) ----------
+    async function createOfferAsHost() {
+        if (peerConnection) closeConnection();
+        peerConnection = new RTCPeerConnection(iceServers);
+        const dc = peerConnection.createDataChannel("gameChannel");
+        setupDataChannel(dc, true);
+
+        peerConnection.onicecandidate = (event) => {
+            // собираем кандидаты вручную не нужны, т.к. будем ждать complete
+        };
+        peerConnection.onicegatheringstatechange = async () => {
+            if (peerConnection.iceGatheringState === 'complete') {
+                const offer = peerConnection.localDescription;
+                if (offer && offer.sdp) {
+                    offerTextArea.value = offer.sdp;
+                }
+            }
+        };
+        try {
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            // если gathering уже complete, выставим текст
+            if (peerConnection.iceGatheringState === 'complete') {
+                offerTextArea.value = peerConnection.localDescription.sdp;
+            } else {
+                offerTextArea.value = "Сбор ICE кандидатов... подождите секунду";
+            }
+        } catch(e) { console.error(e); offerTextArea.value = "Ошибка создания offer"; }
+    }
+
+    async function applyOfferAndCreateAnswer(offerSdp) {
+        if (!offerSdp) { alert("Вставьте SDP offer от белых!"); return; }
+        if (peerConnection) closeConnection();
+        peerConnection = new RTCPeerConnection(iceServers);
+        peerConnection.ondatachannel = (event) => {
+            setupDataChannel(event.channel, false);
+        };
+        peerConnection.onicegatheringstatechange = async () => {
+            if (peerConnection.iceGatheringState === 'complete') {
+                const answer = peerConnection.localDescription;
+                if (answer && answer.sdp) {
+                    answerTextArea.value = answer.sdp;
+                }
+            }
+        };
+        try {
+            await peerConnection.setRemoteDescription({ type: "offer", sdp: offerSdp });
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            if (peerConnection.iceGatheringState === 'complete') {
+                answerTextArea.value = peerConnection.localDescription.sdp;
+            } else {
+                answerTextArea.value = "Сбор ICE ответа...";
+            }
+        } catch(e) { console.error(e); answerTextArea.value = "Ошибка создания answer"; alert("Неверный offer, попробуйте заново"); }
+    }
+
+    async function applyAnswerToHost(answerSdp) {
+        if (!peerConnection || !peerConnection.localDescription) {
+            alert("Сначала создайте offer (кнопка 'Создать offer')");
+            return;
+        }
+        if (!answerSdp) { alert("Вставьте answer от чёрных"); return; }
+        try {
+            await peerConnection.setRemoteDescription({ type: "answer", sdp: answerSdp });
+            // соединение должно установиться (onopen в канале)
+        } catch(e) { console.error(e); alert("Неверный answer"); }
+    }
+
+    // ---------- ОБРАБОТЧИКИ КЛИКОВ ПО ДОСКЕ ----------
+    canvas.addEventListener('click', (e) => {
+        if (!connectionActive || gameOver || !myColor) {
+            updateStatusMessage("Игра недоступна — нет соединения");
+            return;
+        }
+        const turn = game.turn();
+        if ((myColor === 'w' && turn !== 'w') || (myColor === 'b' && turn !== 'b')) {
+            updateStatusMessage("Сейчас ход соперника!");
+            return;
+        }
+
+        const square = getSquareFromClick(e.clientX, e.clientY);
+        if (!square) return;
+        const { row, col, algebraic } = square;
+        const pieceAtSquare = game.get(algebraic);
+
+        if (selectedSquare === null) {
+            // выбираем фигуру только если есть фигура своего цвета
+            if (pieceAtSquare && pieceAtSquare.color === myColor) {
+                selectedSquare = { row, col, algebraic };
+                const moves = getMovesFromSquare(row, col);
+                possibleMoves = moves;
+                drawBoard();
+            } else {
+                if (pieceAtSquare && pieceAtSquare.color !== myColor) updateStatusMessage("Это фигура соперника!");
+                else updateStatusMessage("Выберите свою фигуру");
+            }
+        } else {
+            // уже есть выбранная фигура — пробуем сделать ход
+            const moveToMake = possibleMoves.find(m => m.toRow === row && m.toCol === col);
+            if (moveToMake) {
+                makeLocalMove({ from: moveToMake.from, to: moveToMake.to });
+                selectedSquare = null;
+                possibleMoves = [];
+                drawBoard();
+            } else {
+                // сброс выбора, если кликнули не на возможный ход
+                selectedSquare = null;
+                possibleMoves = [];
+                drawBoard();
+                // повторно обработаем клик для выбора другой фигуры (рекурсивно не надо)
+                const newPiece = game.get(algebraic);
+                if (newPiece && newPiece.color === myColor) {
+                    selectedSquare = { row, col, algebraic };
+                    possibleMoves = getMovesFromSquare(row, col);
+                    drawBoard();
+                }
+            }
+        }
+    });
+
+    // ---------- КНОПКИ ИНТЕРФЕЙСА ----------
+    createOfferBtn.onclick = async () => {
+        closeConnection();
+        await createOfferAsHost();
+    };
+    copyOfferBtn.onclick = () => {
+        if (offerTextArea.value) {
+            navigator.clipboard.writeText(offerTextArea.value);
+            updateStatusMessage("📋 Offer скопирован в буфер");
+        } else alert("Нет offer для копирования");
+    };
+    createAnswerBtn.onclick = async () => {
+        const offer = offerTextArea.value;
+        if (!offer.trim()) { alert("Вставьте offer белых в поле выше (Игрок 1)"); return; }
+        await applyOfferAndCreateAnswer(offer);
+    };
+    copyAnswerBtn.onclick = () => {
+        if (answerTextArea.value) {
+            navigator.clipboard.writeText(answerTextArea.value);
+            updateStatusMessage("📋 Answer скопирован");
+        } else alert("Нет answer для копирования");
+    };
+    applyAnswerBtn.onclick = async () => {
+        const answer = answerTextArea.value;
+        if (!answer) { alert("Вставьте answer от чёрных в поле answer"); return; }
+        await applyAnswerToHost(answer);
+    };
+    resetGameBtn.onclick = () => {
+        if (!connectionActive) {
+            game = new Chess();
+            drawBoard();
+            updateTurnDisplay();
+            updateStatusMessage("Локальный сброс (нет соединения)");
+        } else {
+            resetGameLocallyAndSync();
+        }
+        selectedSquare = null;
+        possibleMoves = [];
+    };
+    resetConnectionBtn.onclick = () => {
+        closeConnection();
+        offerTextArea.value = '';
+        answerTextArea.value = '';
+        game = new Chess();
+        drawBoard();
+        updateStatusMessage("Соединение сброшено");
+        turnSpan.innerText = "⚡ Нет соединения";
+    };
+
+    // начальная отрисовка
+    drawBoard();
+    updateStatusMessage("🎯 Готово. Следуйте инструкции выше для P2P подключения");
+    turnSpan.innerText = "⚡ Ожидание подключения";
+</script>
+</body>
+</html>
