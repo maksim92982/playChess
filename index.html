@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Шахматы онлайн — P2P с логированием</title>
+    <title>Шахматы онлайн — P2P с логированием (исправленное управление)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -213,22 +213,27 @@
             </div>
 
             <div class="connection-area">
+                <!-- Игрок 1 (белые, хост) -->
                 <div class="signal-box">
                     <h4>🎲 ИГРОК 1 (БЕЛЫЕ) — хост</h4>
-                    <textarea id="offerTextArea" rows="3" placeholder="SDP offer... скопируйте"></textarea>
+                    <textarea id="offerTextArea" rows="3" placeholder="Здесь будет offer (отправьте чёрному)"></textarea>
                     <div style="display: flex; flex-wrap: wrap; gap:6px;">
                         <button id="createOfferBtn">✨ Создать offer</button>
                         <button id="copyOfferBtn" class="copy-btn">📋 Копировать offer</button>
-                        <button id="applyAnswerBtn">🔗 Вставить answer</button>
+                        <button id="applyAnswerBtn">🔗 Вставить answer (от чёрного)</button>
                     </div>
+                    <div style="font-size: 11px; margin-top: 8px; color:#9ab">① Создайте offer → скопируйте → отправьте чёрному</div>
                 </div>
+
+                <!-- Игрок 2 (чёрные, клиент) -->
                 <div class="signal-box">
                     <h4>⚫ ИГРОК 2 (ЧЁРНЫЕ) — клиент</h4>
-                    <textarea id="answerTextArea" rows="3" placeholder="Вставьте offer от белых..."></textarea>
+                    <textarea id="remoteOfferField" rows="3" placeholder="Вставьте сюда offer от белых..."></textarea>
                     <div style="display: flex; flex-wrap: wrap; gap:6px;">
-                        <button id="createAnswerBtn">♟️ Создать answer</button>
+                        <button id="createAnswerBtn">♟️ Создать answer (на основе offer)</button>
                         <button id="copyAnswerBtn" class="copy-btn">📋 Копировать answer</button>
                     </div>
+                    <div style="font-size: 11px; margin-top: 8px; color:#9ab">② Вставьте offer → создайте answer → скопируйте → отправьте белому</div>
                 </div>
             </div>
 
@@ -237,9 +242,9 @@
                 <button id="resetConnectionBtn">🔌 Сбросить соединение</button>
             </div>
             <div style="font-size: 12px; color: #8aa7a7; text-align: center; margin-top: 12px;">
-                💡 1. Белый создаёт offer → копирует → отправляет чёрному.<br>
-                2. Чёрный вставляет offer → создаёт answer → копирует → отправляет белому.<br>
-                3. Белый вставляет answer → соединение готово!
+                💡 Белый создаёт offer → копирует → отправляет чёрному.<br>
+                💡 Чёрный вставляет offer в своё поле → создаёт answer → копирует → отправляет белому.<br>
+                💡 Белый вставляет answer в своё поле → соединение!
             </div>
         </div>
 
@@ -273,8 +278,30 @@
     // DOM элементы
     const statusDiv = document.getElementById('gameStatus');
     const turnSpan = document.getElementById('turnIndicator');
-    const offerTextArea = document.getElementById('offerTextArea');
-    const answerTextArea = document.getElementById('answerTextArea');
+    const offerTextArea = document.getElementById('offerTextArea');     // поле для offer (белые)
+    const remoteOfferField = document.getElementById('remoteOfferField'); // поле для вставки offer (чёрные)
+    const answerTextArea = document.getElementById('answerTextArea') || (() => {
+        // добавим, если вдруг нет — но в новом коде у чёрных нет отдельного поля для answer, answer будет сгенерирован в remoteOfferField? нет, answer будет показан в том же поле после создания? Упростим: сделаем отдельное поле для answer у чёрных, но лучше answer показывать в отдельном поле. Переделаем чуть ниже.
+        const newArea = document.createElement('textarea');
+        newArea.id = 'answerTextArea';
+        newArea.rows = 3;
+        newArea.placeholder = "Здесь появится answer (скопируйте)";
+        document.querySelector('.signal-box:last-child').appendChild(newArea);
+        return newArea;
+    })();
+
+    // Но для чистоты: в разметке у чёрных нет поля для answer, давайте добавим его программно, чтобы не ломать интерфейс.
+    // Лучше сразу добавить в HTML, но для надёжности создадим:
+    if (!document.getElementById('answerTextArea')) {
+        const blackBox = document.querySelector('.signal-box:last-child');
+        const answerField = document.createElement('textarea');
+        answerField.id = 'answerTextArea';
+        answerField.rows = 3;
+        answerField.placeholder = "Здесь появится answer (скопируйте и отправьте белому)";
+        blackBox.appendChild(answerField);
+    }
+    const generatedAnswerArea = document.getElementById('answerTextArea');
+
     const logContainer = document.getElementById('logList');
 
     // Функция логирования
@@ -285,7 +312,6 @@
         logDiv.innerHTML = `[${timestamp}] ${message}`;
         logContainer.appendChild(logDiv);
         logDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        // автоматически очищаем если слишком много (оставим последние 200)
         while (logContainer.children.length > 200) logContainer.removeChild(logContainer.firstChild);
     }
 
@@ -293,7 +319,7 @@
         logContainer.innerHTML = '<div class="log-entry info">🔹 Логи очищены. Новая сессия.</div>';
     }
 
-    // ---------- Шахматная отрисовка (без изменений) ----------
+    // ---------- Шахматная отрисовка ----------
     function getPieceSymbol(piece) {
         if (!piece) return '';
         const symbols = { 'k':'♚','q':'♛','r':'♜','b':'♝','n':'♞','p':'♟',
@@ -552,8 +578,9 @@
         } catch(e) { addLog(`Ошибка создания offer: ${e.message}`, "error"); }
     }
 
+    // ИСПРАВЛЕНО: теперь answer создаётся на основе offer, который чёрный вставил в своё поле remoteOfferField
     async function applyOfferAndCreateAnswer(offerSdp) {
-        if (!offerSdp) { addLog("❌ Нет SDP offer для создания answer", "error"); alert("Вставьте offer"); return; }
+        if (!offerSdp) { addLog("❌ Нет SDP offer для создания answer. Вставьте offer от белых в своё поле.", "error"); alert("Вставьте offer от белых в поле 'Вставьте сюда offer'"); return; }
         if (peerConnection) closeConnection();
         peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         peerConnection.ondatachannel = (event) => {
@@ -565,7 +592,7 @@
             if (peerConnection.iceGatheringState === 'complete') {
                 const answer = peerConnection.localDescription;
                 if (answer && answer.sdp) {
-                    answerTextArea.value = answer.sdp;
+                    generatedAnswerArea.value = answer.sdp;
                     addLog("✨ Answer полностью сгенерирован! Скопируйте и отправьте белому игроку.", "success");
                 }
             }
@@ -576,23 +603,23 @@
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             if (peerConnection.iceGatheringState === 'complete') {
-                answerTextArea.value = peerConnection.localDescription.sdp;
+                generatedAnswerArea.value = peerConnection.localDescription.sdp;
                 addLog("✨ Answer готов (gathering завершён).", "success");
             }
-        } catch(e) { addLog(`Ошибка создания answer: ${e.message}`, "error"); alert("Неверный offer"); }
+        } catch(e) { addLog(`Ошибка создания answer: ${e.message}`, "error"); alert("Неверный offer, попросите белого создать новый"); }
     }
 
     async function applyAnswerToHost(answerSdp) {
         if (!peerConnection || !peerConnection.localDescription) {
             addLog("❌ Нет активного offer. Сначала создайте offer (белые).", "error");
-            alert("Сначала создайте offer");
+            alert("Сначала создайте offer (кнопка 'Создать offer')");
             return;
         }
-        if (!answerSdp) { addLog("❌ Нет answer для установки", "error"); alert("Вставьте answer"); return; }
+        if (!answerSdp) { addLog("❌ Нет answer для установки", "error"); alert("Вставьте answer от чёрного в поле 'Вставить answer'"); return; }
         try {
             await peerConnection.setRemoteDescription({ type: "answer", sdp: answerSdp });
             addLog("🔗 Answer от чёрных принят! Соединение устанавливается...", "success");
-        } catch(e) { addLog(`Ошибка установки answer: ${e.message}`, "error"); alert("Неверный answer"); }
+        } catch(e) { addLog(`Ошибка установки answer: ${e.message}`, "error"); alert("Неверный answer, попросите чёрного создать заново"); }
     }
 
     function closeConnection() {
@@ -608,7 +635,8 @@
         updateStatusMessage("🔌 Соединение сброшено");
         turnSpan.innerText = "⚡ Нет соединения";
         offerTextArea.value = '';
-        answerTextArea.value = '';
+        remoteOfferField.value = '';
+        if (generatedAnswerArea) generatedAnswerArea.value = '';
         addLog("🔌 Соединение принудительно сброшено", "warning");
     }
 
@@ -661,15 +689,28 @@
 
     document.getElementById('createOfferBtn').onclick = async () => { closeConnection(); await createOfferAsHost(); };
     document.getElementById('copyOfferBtn').onclick = () => { if(offerTextArea.value) { navigator.clipboard.writeText(offerTextArea.value); addLog("📋 Offer скопирован в буфер обмена", "success"); } else addLog("Нет offer для копирования", "error"); };
-    document.getElementById('createAnswerBtn').onclick = async () => { const offer = offerTextArea.value; if(!offer.trim()){ alert("Вставьте offer"); addLog("Нет offer в поле Игрока 1", "error"); return; } await applyOfferAndCreateAnswer(offer); };
-    document.getElementById('copyAnswerBtn').onclick = () => { if(answerTextArea.value) { navigator.clipboard.writeText(answerTextArea.value); addLog("📋 Answer скопирован в буфер", "success"); } else addLog("Нет answer для копирования", "error"); };
-    document.getElementById('applyAnswerBtn').onclick = async () => { const ans = answerTextArea.value; if(!ans){ alert("Вставьте answer"); addLog("Нет answer в поле Игрока 2", "error"); return; } await applyAnswerToHost(ans); };
+    document.getElementById('createAnswerBtn').onclick = async () => { 
+        const offer = remoteOfferField.value; 
+        if(!offer.trim()){ alert("Вставьте offer от белых в поле выше"); addLog("Нет offer в поле для вставки (чёрные)", "error"); return; } 
+        await applyOfferAndCreateAnswer(offer); 
+    };
+    document.getElementById('copyAnswerBtn').onclick = () => { 
+        if(generatedAnswerArea.value) { 
+            navigator.clipboard.writeText(generatedAnswerArea.value); 
+            addLog("📋 Answer скопирован в буфер", "success"); 
+        } else addLog("Нет answer для копирования (сначала создайте answer)", "error"); 
+    };
+    document.getElementById('applyAnswerBtn').onclick = async () => { 
+        const ans = generatedAnswerArea ? generatedAnswerArea.value : ''; 
+        if(!ans){ alert("Вставьте answer от чёрного в поле 'answer' (под полем чёрного)"); addLog("Нет answer для вставки", "error"); return; } 
+        await applyAnswerToHost(ans); 
+    };
     document.getElementById('resetGameBtn').onclick = () => { resetGameLocallyAndSync(); };
     document.getElementById('resetConnectionBtn').onclick = () => { closeConnection(); };
     document.getElementById('clearLogBtn').onclick = () => { clearLogs(); };
 
     drawBoard();
-    addLog("🎮 Шахматы P2P загружены. Используйте панель сигнализации для подключения.", "success");
+    addLog("🎮 Шахматы P2P загружены. Белый создаёт offer, чёрный вставляет offer в своё поле и создаёт answer.", "success");
 </script>
 </body>
 </html>
